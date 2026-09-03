@@ -4,36 +4,38 @@ import './App.css';
 function App() {
   const [image, setImage] = useState(null);
   const [activeFilter, setActiveFilter] = useState('original');
-  const [showFilters, setShowFilters] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-
-  // Settings for the Frame
+  const [activeTab, setActiveTab] = useState('tools'); // 'tools' or 'styles'
+  
+  // Frame Settings
   const [frameColor, setFrameColor] = useState('#ffffff');
-
-  // Custom Overlay State
   const [frameBox, setFrameBox] = useState(null);
-  const [frameText, setFrameText] = useState({ x: 0.1, y: 0.5, fontSize: 80 });
+  const [frameText, setFrameText] = useState({ x: 0.1, y: 0.5 });
 
+  // History
+  const [history, setHistory] = useState(['original']);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const canvasRef = useRef(null);
   const viewerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const resizingRef = useRef(null);
   const draggingRef = useRef(null);
+  const resizingRef = useRef(null);
 
   const filters = [
     { id: 'original', name: 'Original' },
     { id: 'glitch', name: 'Glitch' },
-    { id: 'mono', name: 'Mono Depth' },
-    { id: 'sketch', name: 'Sketch Blur' },
+    { id: 'mono', name: 'Monochrome' },
+    { id: 'sketch', name: 'Sketch' },
     { id: 'error', name: 'Error 404' },
-    { id: 'focus', name: 'Focus Type' },
-    { id: 'frame', name: "It's Not Joke (Interactive Box)" },
-    { id: 'bars', name: 'Vertical Bars' },
+    { id: 'frame', name: 'It\'s Not Joke' },
+    { id: 'bars', name: 'Split Slices' },
     { id: 'popart', name: 'Pop Art' },
     { id: 'grid', name: 'Grid & Tech' },
+    { id: 'focus', name: 'Focus Typo' },
     { id: 'paint', name: 'Color Paint' }
   ];
 
-  // Handle Image Upload
+  // Upload
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -42,8 +44,9 @@ function App() {
         const img = new Image();
         img.onload = () => {
           setImage(img);
-          // Initialize the box on image load
           setFrameBox({ x: 0.5, y: 0.4, width: 0.4, height: 0.4 });
+          setHistory(['original']);
+          setHistoryIndex(0);
         };
         img.src = event.target.result;
       };
@@ -51,95 +54,140 @@ function App() {
     }
   };
 
-  // Apply Canvas Filters
+  // Apply Filters
   const applyFilter = () => {
     const canvas = canvasRef.current;
     if (!canvas || !image) return;
     const ctx = canvas.getContext('2d');
-    
     canvas.width = image.width;
     canvas.height = image.height;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#ffffff'; // Default white background
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0);
 
-    if (activeFilter === 'glitch') {
-      for (let i = 0; i < canvas.height; i += 15) {
-        const shiftX = (Math.random() - 0.5) * 50;
-        ctx.drawImage(canvas, 0, i, canvas.width, 15, shiftX, i, canvas.width, 15);
-      }
-    } else if (activeFilter === 'mono') {
-      ctx.filter = 'grayscale(100%) contrast(120%)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-    } else if (activeFilter === 'sketch') {
-      ctx.filter = 'grayscale(100%) blur(10px) contrast(220%)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-    } else if (activeFilter === 'error') {
-      ctx.filter = 'grayscale(100%) contrast(200%)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      for(let i=0; i<100; i++) ctx.fillRect(0, Math.random() * canvas.height, canvas.width, Math.random() * 3);
-    } else if (activeFilter === 'focus') {
-      ctx.filter = 'grayscale(100%) blur(5px)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-    } else if (activeFilter === 'frame') {
-      // Just black and white background for the frame filter
-      ctx.filter = 'grayscale(100%) contrast(150%)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-      // Box is drawn using HTML Overlay, not Canvas
-    } else if (activeFilter === 'bars') {
-      const numBars = 4;
-      const barWidth = canvas.width / numBars;
-      for(let i=0; i<numBars; i++) {
-        ctx.drawImage(image, (i*barWidth), 0, barWidth, canvas.height, (i*barWidth), 0, barWidth, canvas.height);
-      }
-    } else if (activeFilter === 'popart') {
-      ctx.filter = 'grayscale(100%) contrast(200%)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-      ctx.fillStyle = 'rgba(0, 255, 180, 0.4)';
-      ctx.fillRect(0, 0, canvas.width/2, canvas.height/2);
-      ctx.fillStyle = 'rgba(255, 0, 200, 0.4)';
-      ctx.fillRect(canvas.width/2, canvas.height/2, canvas.width/2, canvas.height/2);
-    } else if (activeFilter === 'grid') {
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      const gridSize = canvas.width / 10;
-      for(let i=0; i<10; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i*gridSize, 0);
-        ctx.lineTo(i*gridSize, canvas.height);
-        ctx.moveTo(0, i*gridSize);
-        ctx.lineTo(canvas.width, i*gridSize);
-        ctx.stroke();
-      }
+    switch (activeFilter) {
+      case 'glitch':
+        for (let i = 0; i < canvas.height; i += 15) {
+          const shiftX = (Math.random() - 0.5) * 50;
+          ctx.drawImage(canvas, 0, i, canvas.width, 15, shiftX, i, canvas.width, 15);
+        }
+        break;
+      case 'mono':
+        ctx.filter = 'grayscale(100%) contrast(120%)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        break;
+      case 'sketch':
+        ctx.filter = 'grayscale(100%) blur(10px) contrast(220%)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        break;
+      case 'error':
+        ctx.filter = 'grayscale(100%) contrast(200%)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        for(let i=0; i<80; i++) ctx.fillRect(0, Math.random() * canvas.height, canvas.width, Math.random() * 4);
+        break;
+      case 'frame':
+        ctx.filter = 'grayscale(100%) contrast(150%)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        break;
+      case 'bars':
+        const numBars = 4;
+        const barWidth = canvas.width / numBars;
+        for(let i=0; i<numBars; i++) {
+          ctx.drawImage(image, (i*barWidth), 0, barWidth, canvas.height, (i*barWidth), 0, barWidth, canvas.height);
+        }
+        break;
+      case 'popart':
+        ctx.filter = 'grayscale(100%) contrast(200%)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        ctx.fillStyle = 'rgba(0, 255, 180, 0.4)';
+        ctx.fillRect(0, 0, canvas.width/2, canvas.height/2);
+        ctx.fillStyle = 'rgba(255, 0, 200, 0.4)';
+        ctx.fillRect(canvas.width/2, canvas.height/2, canvas.width/2, canvas.height/2);
+        break;
+      case 'grid':
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 2;
+        const gridSize = canvas.width / 10;
+        for(let i=0; i<10; i++) {
+          ctx.beginPath(); ctx.moveTo(i*gridSize, 0); ctx.lineTo(i*gridSize, canvas.height);
+          ctx.moveTo(0, i*gridSize); ctx.lineTo(canvas.width, i*gridSize); ctx.stroke();
+        }
+        break;
+      case 'focus':
+        ctx.filter = 'grayscale(100%) blur(8px)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        break;
+      case 'paint':
+        ctx.filter = 'grayscale(100%)';
+        ctx.drawImage(image, 0, 0);
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = 'rgba(0, 100, 255, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'source-over';
+        break;
+      default: break;
     }
   };
 
-  const canvasRef = useRef(null);
   useEffect(() => { applyFilter(); }, [image, activeFilter]);
 
-  // --- DRAG / RESIZE LOGIC ---
+  // History Handlers
+  const changeFilter = (filterId) => {
+    setActiveFilter(filterId);
+    const newHistory = [...history.slice(0, historyIndex + 1), filterId];
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setActiveFilter(history[newIndex]);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setActiveFilter(history[newIndex]);
+    }
+  };
+
+  const handleClear = () => {
+    setImage(null);
+    setHistory(['original']);
+    setHistoryIndex(0);
+    setFrameBox(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Drag / Resize Logic
   const startDrag = (e, type) => {
     e.preventDefault();
     const viewer = viewerRef.current.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
 
     if (type === 'box') {
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const origX = frameBox.x * viewer.width;
-      const origY = frameBox.y * viewer.height;
-      
-      draggingRef.current = { startX, startY, origX, origY };
+      draggingRef.current = {
+        startX, startY,
+        origX: frameBox.x * viewer.width,
+        origY: frameBox.y * viewer.height
+      };
     } else if (type === 'resize') {
-      resizingRef.current = { startX: e.clientX, startY: e.clientY, origWidth: frameBox.width, origHeight: frameBox.height, viewer };
+      resizingRef.current = { startX, startY, viewer, origW: frameBox.width, origH: frameBox.height };
     }
 
     const onMove = (moveEvent) => {
@@ -149,18 +197,18 @@ function App() {
       if (draggingRef.current) {
         const dx = (clientX - draggingRef.current.startX) / viewer.width;
         const dy = (clientY - draggingRef.current.startY) / viewer.height;
-        setFrameBox(prev => ({ 
-          ...prev, 
-          x: Math.max(0.05, Math.min(0.95, (draggingRef.current.origX / viewer.width) + dx)), 
-          y: Math.max(0.05, Math.min(0.95, (draggingRef.current.origY / viewer.height) + dy))
+        setFrameBox(prev => ({
+          ...prev,
+          x: Math.max(0, Math.min(1, (draggingRef.current.origX / viewer.width) + dx)),
+          y: Math.max(0, Math.min(1, (draggingRef.current.origY / viewer.height) + dy))
         }));
       } else if (resizingRef.current) {
         const dx = (clientX - resizingRef.current.startX) / resizingRef.current.viewer.width;
         const dy = (clientY - resizingRef.current.startY) / resizingRef.current.viewer.height;
-        setFrameBox(prev => ({ 
-          ...prev, 
-          width: Math.max(0.1, resizingRef.current.origWidth + dx), 
-          height: Math.max(0.1, resizingRef.current.origHeight + dy)
+        setFrameBox(prev => ({
+          ...prev,
+          width: Math.max(0.05, resizingRef.current.origW + dx),
+          height: Math.max(0.05, resizingRef.current.origH + dy)
         }));
       }
     };
@@ -180,186 +228,144 @@ function App() {
     window.addEventListener('touchend', onUp);
   };
 
-  const startTextDrag = (e) => {
-    e.preventDefault();
-    const viewer = viewerRef.current.getBoundingClientRect();
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const origX = frameText.x * viewer.width;
-    const origY = frameText.y * viewer.height;
-
-    const onMove = (moveEvent) => {
-      const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
-      const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
-      const dx = (clientX - startX) / viewer.width;
-      const dy = (clientY - startY) / viewer.height;
-      setFrameText(prev => ({ ...prev, x: (origX / viewer.width) + dx, y: (origY / viewer.height) + dy }));
-    };
-
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onUp);
-    };
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove);
-    window.addEventListener('touchend', onUp);
-  };
-
-  // Final Save (Draw Box & Text on Canvas)
-  const downloadImage = () => {
+  // Save Logic (Draw Frame Box & Text onto Canvas)
+  const handleSave = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    
-    // Draw Frame Box
+
     if (activeFilter === 'frame' && frameBox) {
       const boxX = frameBox.x * canvas.width;
       const boxY = frameBox.y * canvas.height;
-      const boxWidth = frameBox.width * canvas.width;
-      const boxHeight = frameBox.height * canvas.height;
-      
+      const boxW = frameBox.width * canvas.width;
+      const boxH = frameBox.height * canvas.height;
+
       ctx.strokeStyle = frameColor;
       ctx.lineWidth = 8;
-      ctx.strokeRect(boxX - boxWidth/2, boxY - boxHeight/2, boxWidth, boxHeight);
+      ctx.strokeRect(boxX - boxW/2, boxY - boxH/2, boxW, boxH);
 
-      // Draw Text
-      const textX = frameText.x * canvas.width;
-      const textY = frameText.y * canvas.height;
+      // Text
+      ctx.font = `bold ${canvas.width * 0.12}px Arial`;
       ctx.fillStyle = frameColor;
-      ctx.font = `bold ${canvas.width * 0.15}px Arial`;
       ctx.textAlign = 'left';
-      ctx.fillText("IT'S", textX, textY - canvas.height * 0.2);
-      ctx.fillText("NOT", textX, textY);
-      ctx.fillText("JOKE", textX, textY + canvas.height * 0.2);
+      ctx.fillText("IT'S", canvas.width * 0.05, canvas.height * 0.4);
+      ctx.fillText("NOT", canvas.width * 0.05, canvas.height * 0.55);
+      ctx.fillText("JOKE", canvas.width * 0.05, canvas.height * 0.7);
     }
 
     const link = document.createElement('a');
-    link.download = 'frame_image.png';
+    link.download = 'snapseed_edit.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
 
-  const handleClear = () => {
-    setImage(null);
-    setFrameBox(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
   return (
     <div className="App">
-      <h1>Glitch & Mono Suite</h1>
-      
-      <div className="controls">
-        <button className="btn" onClick={() => fileInputRef.current.click()}>
-          {image ? 'Upload New Image' : 'Upload Image'}
-        </button>
-        <input ref={fileInputRef} id="file-upload" type="file" onChange={handleImageUpload} style={{display: 'none'}} />
+      {/* TOP BAR */}
+      <div className="top-bar">
+        <div className="top-actions">
+          <button className="icon-btn" onClick={() => fileInputRef.current.click()}>
+            <img src="/assets/open.png" alt="Open" />
+          </button>
+          <input ref={fileInputRef} id="file-upload" type="file" onChange={handleImageUpload} style={{display: 'none'}} />
+        </div>
         
-        {image && (
-          <>
-            <button className="btn" onClick={handleClear}>Clear All</button>
-            <button className="icon-btn" onClick={() => setShowSettings(true)}>⚙️</button>
-          </>
-        )}
+        <div className="title">GLITCH EDITOR</div>
+
+        <div className="top-actions">
+          {image && (
+            <>
+              <button className="icon-btn" onClick={handleUndo} disabled={historyIndex <= 0}>
+                <img src="/assets/undo.png" alt="Undo" />
+              </button>
+              <button className="icon-btn" onClick={handleRedo} disabled={historyIndex >= history.length - 1}>
+                <img src="/assets/redo.png" alt="Redo" />
+              </button>
+              <button className="icon-btn" onClick={handleClear}>
+                <img src="/assets/clear.png" alt="Clear" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {image && (
-        <>
-          <div className="filter-dropdown">
-            <button className="btn dropdown-toggle" onClick={() => setShowFilters(!showFilters)}>
-              Filter: {filters.find(f => f.id === activeFilter)?.name} ▼
-            </button>
-            {showFilters && (
-              <div className="dropdown-menu">
-                {filters.map(filter => (
-                  <div 
-                    key={filter.id} 
-                    className={`dropdown-item ${activeFilter === filter.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveFilter(filter.id);
-                      setShowFilters(false);
-                    }}
-                  >
-                    {filter.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Viewer Box */}
+      {/* CENTRAL CANVAS */}
+      <div className="canvas-area">
+        {!image ? (
+          <div style={{color: '#555'}}>Open an image to start editing</div>
+        ) : (
           <div className="viewer-box" ref={viewerRef}>
             <canvas ref={canvasRef}></canvas>
 
-            {/* Interactive Frame Box */}
             {activeFilter === 'frame' && frameBox && (
-              <div 
-                className="frame-box" 
-                style={{
-                  left: `${frameBox.x * 100}%`,
-                  top: `${frameBox.y * 100}%`,
-                  width: `${frameBox.width * 100}%`,
-                  height: `${frameBox.height * 100}%`,
-                  transform: 'translate(-50%, -50%)',
-                  borderColor: frameColor,
-                  borderWidth: '4px'
-                }}
-                onMouseDown={(e) => startDrag(e, 'box')}
-                onTouchStart={(e) => startDrag(e, 'box')}
-              >
-                {/* Resize Handle (Bottom Right) */}
+              <>
                 <div 
-                  className="resize-handle br" 
-                  onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'resize'); }}
-                  onTouchStart={(e) => { e.stopPropagation(); startDrag(e, 'resize'); }}
-                ></div>
-              </div>
-            )}
-
-            {/* Interactive Text */}
-            {activeFilter === 'frame' && (
-              <div 
-                className="frame-text"
-                style={{
-                  left: `${frameText.x * 100}%`,
-                  top: `${frameText.y * 100}%`,
-                  color: frameColor,
-                  transform: 'translate(-50%, -50%)'
-                }}
-                onMouseDown={startTextDrag}
-                onTouchStart={startTextDrag}
-              >
-                IT'S NOT JOKE
-              </div>
+                  className="frame-box" 
+                  style={{
+                    position: 'absolute',
+                    left: `${frameBox.x * 100}%`, top: `${frameBox.y * 100}%`,
+                    width: `${frameBox.width * 100}%`, height: `${frameBox.height * 100}%`,
+                    transform: 'translate(-50%, -50%)',
+                    border: `4px solid ${frameColor}`,
+                    cursor: 'move'
+                  }}
+                  onMouseDown={(e) => startDrag(e, 'box')}
+                  onTouchStart={(e) => startDrag(e, 'box')}
+                >
+                  <div 
+                    className="resize-handle" 
+                    style={{position:'absolute', bottom:'-10px', right:'-10px', width:'15px', height:'15px', background: frameColor, borderRadius:'50%'}}
+                    onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'resize'); }}
+                    onTouchStart={(e) => { e.stopPropagation(); startDrag(e, 'resize'); }}
+                  />
+                </div>
+              </>
             )}
           </div>
-          
-          <p style={{fontSize: '12px', color: '#888'}}>
-            {activeFilter === 'frame' ? 'Drag the box and text. Use the bottom-right circle to resize Length & Width.' : 'Select a filter from the dropdown.'}
-          </p>
+        )}
+      </div>
 
-          <button className="download-btn" onClick={downloadImage}>
-            Save Image
-          </button>
-        </>
+      {/* DROPDOWN TOOLS PANEL (Opens when clicking Tools) */}
+      {activeTab === 'tools' && image && (
+        <div className="dropdown-panel">
+          {filters.map(f => (
+            <div 
+              key={f.id} 
+              className={`tool-item ${activeFilter === f.id ? 'active' : ''}`}
+              onClick={() => changeFilter(f.id)}
+            >
+              <span>{f.name}</span>
+            </div>
+          ))}
+        </div>
       )}
 
-      {showSettings && (
-        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+      {/* BOTTOM NAVIGATION */}
+      <div className="bottom-nav">
+        <div className={`nav-item ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => setActiveTab('tools')}>
+          <img src="/assets/tools.png" alt="Tools" />
+          <span>TOOLS</span>
+        </div>
+        <div className={`nav-item ${activeTab === 'styles' ? 'active' : ''}`} onClick={() => setActiveTab('styles')}>
+          <img src="/assets/styles.png" alt="Styles" />
+          <span>STYLES</span>
+        </div>
+        <div className="nav-item" onClick={handleSave}>
+          <img src="/assets/export.png" alt="Save" />
+          <span>EXPORT</span>
+        </div>
+      </div>
+
+      {/* Settings Modal (Frame Color) */}
+      {activeFilter === 'frame' && (
+        <div className="modal-overlay" onClick={() => setActiveTab('tools')}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Settings</h2>
-            <div className="setting-group">
-              <label>Frame Border Color</label>
-              <div className="color-options">
-                {['#ffffff', '#000000', '#ff0000', '#ffff00', '#0000ff'].map(c => (
-                  <div key={c} className={`color-swatch ${frameColor === c ? 'selected' : ''}`} style={{backgroundColor: c}} onClick={() => setFrameColor(c)}></div>
-                ))}
-              </div>
+            <h3>Frame Color</h3>
+            <div className="color-options">
+              {['#ffffff', '#000000', '#ff0000', '#ffff00', '#0000ff'].map(c => (
+                <div key={c} className={`color-swatch ${frameColor === c ? 'selected' : ''}`} style={{backgroundColor: c}} onClick={() => setFrameColor(c)}></div>
+              ))}
             </div>
-            <button className="btn" onClick={() => setShowSettings(false)}>Close</button>
+            <button className="btn" onClick={() => setActiveTab('tools')}>Done</button>
           </div>
         </div>
       )}
