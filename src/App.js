@@ -7,13 +7,17 @@ function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
-  // History for Previous/Restore
+  // History
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   
-  // Settings State
-  const [bgColor, setBgColor] = useState('#121212');
-  const [canvasSize, setCanvasSize] = useState('qhd'); // 'original', 'square', 'qhd'
+  // Settings
+  const [bgColor, setBgColor] = useState('#ffffff'); // Default white
+  const [canvasSize, setCanvasSize] = useState('original'); // Removed forced QHD
+
+  // Movable Overlay State (for 404 text, focus text, etc)
+  const [overlays, setOverlays] = useState([]);
+  const activeOverlayRef = useRef(null);
 
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -26,21 +30,13 @@ function App() {
     { id: 'error', name: 'Error 404' },
     { id: 'paint', name: 'Color Paint' },
     { id: 'focus', name: 'Focus Type' },
-    { id: 'type', name: 'Typography' },
     { id: 'bars', name: 'Vertical Bars' },
     { id: 'frame', name: 'Framed' },
-    { id: 'blue', name: 'Blue Art' },
-    { id: 'shh', name: 'Shhh' },
-    { id: 'colorpop', name: 'Color Pop' },
     { id: 'popart', name: 'Pop Art' },
-    { id: 'grid', name: 'Grid & Tech' },
-    { id: 'split', name: 'Split Slice' },
-    { id: 'ripped', name: 'Ripped' },
-    { id: 'gold', name: 'Gold Silhouette' },
-    { id: 'speck', name: 'Speckled Noise' }
+    { id: 'grid', name: 'Grid & Tech' }
   ];
 
-  // Handle image upload
+  // --- HANDLE IMAGE ---
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -49,8 +45,16 @@ function App() {
         const img = new Image();
         img.onload = () => {
           setImage(img);
-          setHistory([img]); // Initialize history
+          setHistory([img]);
           setHistoryIndex(0);
+          // Reset overlays
+          if (activeFilter === 'error') {
+             setOverlays([{ id: 1, text: 'ERROR 404', x: 0.5, y: 0.5, fontSize: 80 }]);
+          } else if (activeFilter === 'focus') {
+             setOverlays([{ id: 1, text: 'focus', x: 0.5, y: 0.5, fontSize: 120 }]);
+          } else {
+             setOverlays([]);
+          }
         };
         img.src = event.target.result;
       };
@@ -58,49 +62,27 @@ function App() {
     }
   };
 
-  // Apply filters to canvas
+  // --- DRAWING THE CANVAS ---
   const applyFilter = () => {
     const canvas = canvasRef.current;
     if (!canvas || !image) return;
 
     const ctx = canvas.getContext('2d');
     
-    // Determine canvas dimensions based on setting
-    if (canvasSize === 'qhd') {
-      canvas.width = 2560;
-      canvas.height = 1440;
-    } else if (canvasSize === 'square') {
-      canvas.width = 1080;
-      canvas.height = 1080;
-    } else {
-      canvas.width = image.width;
-      canvas.height = image.height;
-    }
+    // Set canvas size to original
+    canvas.width = image.width;
+    canvas.height = image.height;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background Color
+    // Background
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw image scaled to fit
-    const imgRatio = image.width / image.height;
-    const canvasRatio = canvas.width / canvas.height;
-    let drawWidth = canvas.width;
-    let drawHeight = canvas.height;
+    // Draw base image
+    ctx.drawImage(image, 0, 0);
 
-    if (imgRatio > canvasRatio) {
-      drawHeight = canvas.width / imgRatio;
-    } else {
-      drawWidth = canvas.height * imgRatio;
-    }
-
-    const offsetX = (canvas.width - drawWidth) / 2;
-    const offsetY = (canvas.height - drawHeight) / 2;
-
-    ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-
-    // --- FILTER LOGIC ---
+    // --- FILTER LOGIC (Canvas based) ---
     if (activeFilter === 'glitch') {
       for (let i = 0; i < canvas.height; i += 15) {
         const shiftX = (Math.random() - 0.5) * 50;
@@ -109,110 +91,59 @@ function App() {
     } 
     else if (activeFilter === 'mono') {
       ctx.filter = 'grayscale(100%) contrast(120%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
     } 
     else if (activeFilter === 'sketch') {
       ctx.filter = 'grayscale(100%) blur(10px) contrast(220%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
     } 
     else if (activeFilter === 'error') {
+      // Only draws the glitch effect, the text is handled by HTML overlay
       ctx.filter = 'grayscale(100%) contrast(200%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
       ctx.fillStyle = 'black';
       for(let i=0; i<100; i++) ctx.fillRect(0, Math.random() * canvas.height, canvas.width, Math.random() * 3);
-      const bandHeight = 80;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.fillRect(0, (canvas.height/2) - (bandHeight/2), canvas.width, bandHeight);
-      ctx.font = `bold ${canvas.width * 0.1}px monospace`;
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('ERROR 404', canvas.width / 2, canvas.height / 2);
-    } 
+    }
     else if (activeFilter === 'focus') {
       ctx.filter = 'grayscale(100%) blur(5px)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-      ctx.drawImage(image, offsetX + (drawWidth/4), offsetY + (drawHeight/4), drawWidth/2, drawHeight/2, offsetX + (drawWidth/4), offsetY + (drawHeight/4), drawWidth/2, drawHeight/2);
-      ctx.font = `bold ${canvas.width * 0.15}px Arial`;
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.fillText('focus', canvas.width / 2, canvas.height / 2);
     }
     else if (activeFilter === 'bars') {
       const numBars = 4;
-      const barWidth = drawWidth / numBars;
+      const barWidth = canvas.width / numBars;
       for(let i=0; i<numBars; i++) {
-        ctx.drawImage(image, offsetX + (i*barWidth), offsetY, barWidth, drawHeight, offsetX + (i*barWidth), offsetY, barWidth, drawHeight);
+        ctx.drawImage(image, (i*barWidth), 0, barWidth, canvas.height, (i*barWidth), 0, barWidth, canvas.height);
       }
-      ctx.font = `bold ${canvas.width * 0.1}px serif`;
-      ctx.fillStyle = 'black';
-      ctx.textAlign = 'center';
-      ctx.fillText('Just Beauty', canvas.width / 2, canvas.height - (canvas.height * 0.1));
     }
     else if (activeFilter === 'frame') {
       ctx.fillStyle = 'rgba(0,0,0,0.8)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, canvas.width * 0.2, canvas.height * 0.2, canvas.width * 0.6, canvas.height * 0.6);
       ctx.strokeStyle = 'white';
       ctx.lineWidth = 5;
-      const frameSize = drawWidth * 0.6;
-      const fx = (canvas.width - frameSize)/2;
-      const fy = (canvas.height - frameSize)/2;
-      ctx.strokeRect(fx, fy, frameSize, frameSize);
-      
-      ctx.font = `bold ${canvas.width * 0.08}px Arial`;
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'left';
-      ctx.fillText("IT'S NOT JOKE", 50, canvas.height * 0.6);
+      ctx.strokeRect(canvas.width * 0.2, canvas.height * 0.2, canvas.width * 0.6, canvas.height * 0.6);
     }
-    else if (activeFilter === 'blue') {
+    else if (activeFilter === 'paint') {
       ctx.filter = 'grayscale(100%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-      
       ctx.globalCompositeOperation = 'multiply';
       ctx.fillStyle = 'rgba(0, 100, 255, 0.7)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = 'source-over';
-      
-      // Simulate heavy paint blob
-      ctx.fillStyle = 'rgba(0, 50, 200, 0.9)';
-      ctx.beginPath();
-      ctx.arc(canvas.width/2, canvas.height/2, canvas.width * 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    else if (activeFilter === 'shh') {
-      ctx.filter = 'grayscale(100%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-      ctx.filter = 'none';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.font = `bold ${canvas.width * 0.05}px Arial`;
-      ctx.fillStyle = 'black';
-      ctx.textAlign = 'center';
-      ctx.fillText('Shhh...', canvas.width/2, canvas.height/2);
-    }
-    else if (activeFilter === 'colorpop') {
-      ctx.filter = 'grayscale(100%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-      ctx.filter = 'none';
-      ctx.globalCompositeOperation = 'source-atop';
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.8)'; 
-      ctx.fillRect(canvas.width*0.3, 0, canvas.width*0.4, canvas.height);
-      ctx.globalCompositeOperation = 'source-over';
     }
     else if (activeFilter === 'popart') {
       ctx.filter = 'grayscale(100%) contrast(200%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-      ctx.fillStyle = 'rgba(0, 255, 180, 0.5)';
-      ctx.fillRect(offsetX, offsetY, drawWidth/2, drawHeight/2);
-      ctx.fillStyle = 'rgba(255, 0, 200, 0.5)';
-      ctx.fillRect(offsetX + drawWidth/2, offsetY + drawHeight/2, drawWidth/2, drawHeight/2);
+      ctx.fillStyle = 'rgba(0, 255, 180, 0.4)';
+      ctx.fillRect(0, 0, canvas.width/2, canvas.height/2);
+      ctx.fillStyle = 'rgba(255, 0, 200, 0.4)';
+      ctx.fillRect(canvas.width/2, canvas.height/2, canvas.width/2, canvas.height/2);
     }
     else if (activeFilter === 'grid') {
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
@@ -226,65 +157,75 @@ function App() {
         ctx.lineTo(canvas.width, i*gridSize);
         ctx.stroke();
       }
-      ctx.font = `bold ${canvas.width * 0.03}px Arial`;
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.fillText("A STUDY OF DEPTH IN MONOCHROME", canvas.width/2, 30);
-    }
-    else if (activeFilter === 'split') {
-      const half = canvas.width / 2;
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight, 0, 0, half, canvas.height);
-      ctx.filter = 'grayscale(100%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight, half, 0, half, canvas.height);
-      ctx.filter = 'none';
-      ctx.font = `bold ${canvas.width * 0.1}px Arial`;
-      ctx.fillStyle = 'black';
-      ctx.textAlign = 'center';
-      ctx.fillText('LISA', half, canvas.height/2);
-    }
-    else if (activeFilter === 'ripped') {
-      ctx.filter = 'grayscale(100%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-      ctx.filter = 'none';
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.beginPath();
-      ctx.arc(canvas.width * 0.7, canvas.height * 0.2, canvas.width * 0.15, 0, Math.PI * 2);
-      ctx.arc(canvas.width * 0.3, canvas.height * 0.8, canvas.width * 0.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    else if (activeFilter === 'gold') {
-      ctx.filter = 'grayscale(100%) contrast(200%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-      ctx.filter = 'none';
-      ctx.fillStyle = 'rgba(255, 165, 0, 0.6)';
-      ctx.fillRect(canvas.width*0.1, 0, canvas.width*0.8, canvas.height);
-    }
-    else if (activeFilter === 'speck') {
-      ctx.filter = 'grayscale(100%) contrast(250%)';
-      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-      ctx.filter = 'none';
-      // Add noise
-      for(let i=0; i<5000; i++) {
-        ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.5})`;
-        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, 2, 2);
-      }
     }
   };
 
   // Run applyFilter whenever dependencies change
   useEffect(() => {
     applyFilter();
-  }, [image, activeFilter, bgColor, canvasSize]);
+    
+    // Reset or Initialize Overlays when filter changes
+    if (activeFilter === 'error') {
+      setOverlays([{ id: 1, text: 'ERROR 404', x: 0.5, y: 0.5, fontSize: 80 }]);
+    } else if (activeFilter === 'focus') {
+      setOverlays([{ id: 1, text: 'focus', x: 0.5, y: 0.5, fontSize: 100 }]);
+    } else {
+      setOverlays([]);
+    }
+  }, [image, activeFilter, bgColor]);
 
-  // Save History for Undo/Restore
+  // --- DRAG & PINCH TO ZOOM LOGIC ---
+  const startDrag = (e, overlayId) => {
+    const overlay = overlays.find(o => o.id === overlayId);
+    const viewer = e.currentTarget.parentElement;
+    const rect = viewer.getBoundingClientRect();
+    
+    const startX = (e.clientX - rect.left) / rect.width;
+    const startY = (e.clientY - rect.top) / rect.height;
+    const overlayX = overlay.x;
+    const overlayY = overlay.y;
+
+    activeOverlayRef.current = { id: overlayId, startX, startY, overlayX, overlayY };
+
+    const onMove = (e) => {
+      const currentX = (e.clientX - rect.left) / rect.width;
+      const currentY = (e.clientY - rect.top) / rect.height;
+      const dx = currentX - activeOverlayRef.current.startX;
+      const dy = currentY - activeOverlayRef.current.startY;
+      
+      setOverlays(prev => prev.map(o => 
+        o.id === overlayId ? { ...o, x: activeOverlayRef.current.overlayX + dx, y: activeOverlayRef.current.overlayY + dy } : o
+      ));
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onUp);
+  };
+
+  const handleWheel = (e, overlayId) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 10 : -10;
+    setOverlays(prev => prev.map(o => 
+      o.id === overlayId ? { ...o, fontSize: Math.max(20, o.fontSize + delta) } : o
+    ));
+  };
+
+  // --- HISTORY / CLEAR / SAVE ---
   const saveToHistory = () => {
     const newHistory = [...history.slice(0, historyIndex + 1), activeFilter];
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
   };
 
-  // Handle Previous (Undo)
   const handlePrevious = () => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
@@ -293,7 +234,6 @@ function App() {
     }
   };
 
-  // Handle Restore (Redo)
   const handleRestore = () => {
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
@@ -302,19 +242,37 @@ function App() {
     }
   };
 
-  // Handle Clear
   const handleClear = () => {
     setImage(null);
     setHistory([]);
     setHistoryIndex(-1);
+    setOverlays([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Export function for 27-inch QHD monitor (2560x1440)
+  // Final Export (Draws Overlays onto the Canvas)
   const downloadImage = () => {
     const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw HTML Overlays onto final canvas
+    overlays.forEach(overlay => {
+      ctx.font = `bold ${overlay.fontSize}px Arial`;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Draw background band
+      const textWidth = ctx.measureText(overlay.text).width;
+      ctx.fillRect(canvas.width * overlay.x - textWidth/2 - 20, canvas.height * overlay.y - overlay.fontSize/2 - 10, textWidth + 40, overlay.fontSize + 20);
+      
+      // Draw text
+      ctx.fillStyle = 'white';
+      ctx.fillText(overlay.text, canvas.width * overlay.x, canvas.height * overlay.y);
+    });
+
     const link = document.createElement('a');
-    link.download = 'filtered_image_QHD_27inch.png';
+    link.download = 'filtered_image.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
@@ -364,12 +322,33 @@ function App() {
             )}
           </div>
 
-          <div className="canvas-container">
+          {/* The "Box" to see the image in good size */}
+          <div className="viewer-box">
             <canvas ref={canvasRef}></canvas>
+            
+            {/* Render Movable Overlays */}
+            {overlays.map(overlay => (
+              <div 
+                key={overlay.id}
+                className="text-overlay"
+                style={{
+                  left: `${overlay.x * 100}%`,
+                  top: `${overlay.y * 100}%`,
+                  fontSize: `${overlay.fontSize}px`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                onMouseDown={(e) => startDrag(e, overlay.id)}
+                onTouchStart={(e) => startDrag(e, overlay.id)}
+                onWheel={(e) => handleWheel(e, overlay.id)}
+              >
+                {overlay.text}
+              </div>
+            ))}
           </div>
+          <p style={{fontSize: '12px', color: '#888'}}>Drag text to move. Use scroll wheel / pinch to resize.</p>
 
           <button className="download-btn" onClick={downloadImage}>
-            Save (QHD 2560x1440)
+            Save Image
           </button>
         </>
       )}
@@ -379,18 +358,16 @@ function App() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Settings</h2>
             <div className="setting-group">
-              <label>Background Color</label>
+              <label>Background Color (Defaults to White)</label>
               <div className="color-options">
-                {['#121212', '#ffffff', '#0000ff', '#ffff00', '#dcdcdc'].map(c => (
+                {['#ffffff', '#121212', '#0000ff', '#ffff00', '#dcdcdc'].map(c => (
                   <div key={c} className={`color-swatch ${bgColor === c ? 'selected' : ''}`} style={{backgroundColor: c}} onClick={() => setBgColor(c)}></div>
                 ))}
               </div>
             </div>
             <div className="setting-group">
-              <label>Image Size</label>
+              <label>Image Size (Original maintained)</label>
               <select value={canvasSize} onChange={(e) => setCanvasSize(e.target.value)}>
-                <option value="qhd">QHD (27-inch Monitor)</option>
-                <option value="square">Square (1080x1080)</option>
                 <option value="original">Original Size</option>
               </select>
             </div>
