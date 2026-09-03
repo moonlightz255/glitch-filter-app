@@ -1,8 +1,8 @@
 .App {
   text-align: center;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #121212;
-  color: white;
+  background-color: #ffffff; /* Changed to White */
+  color: #333333; /* Darker text for white background */
   min-height: 100vh;
   padding: 20px;
   display: flex;
@@ -13,6 +13,7 @@
 h1 {
   font-weight: 300;
   margin-bottom: 30px;
+  color: #000000;
 }
 
 .controls {
@@ -24,9 +25,9 @@ h1 {
 }
 
 .btn, .icon-btn {
-  border: 1px solid #555;
-  background-color: #333;
-  color: white;
+  border: 1px solid #999;
+  background-color: #f0f0f0;
+  color: #333;
   display: inline-block;
   padding: 10px 20px;
   cursor: pointer;
@@ -35,7 +36,7 @@ h1 {
 }
 
 .btn:hover, .icon-btn:hover {
-  background-color: #555;
+  background-color: #e0e0e0;
 }
 
 .btn:disabled {
@@ -48,7 +49,7 @@ h1 {
   line-height: 1;
 }
 
-/* Dropdown */
+/* Filter Dropdown */
 .filter-dropdown {
   position: relative;
   margin-bottom: 20px;
@@ -63,10 +64,10 @@ h1 {
   top: 110%;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #222;
-  border: 1px solid #444;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
   border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
   overflow: hidden;
   z-index: 100;
   max-height: 300px;
@@ -78,12 +79,13 @@ h1 {
   padding: 12px 20px;
   cursor: pointer;
   text-align: left;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #eee;
   transition: background 0.2s;
+  color: #000;
 }
 
 .dropdown-item:hover {
-  background-color: #444;
+  background-color: #f0f0f0;
 }
 
 .dropdown-item.active {
@@ -92,24 +94,39 @@ h1 {
   font-weight: bold;
 }
 
-/* Canvas */
-.canvas-container {
+/* Image Viewer Box */
+.viewer-box {
   width: 100%;
-  max-width: 80vw;
-  max-height: 70vh;
-  border: 1px solid #333;
+  max-width: 800px;
+  height: 600px; /* Fixed height to act as a good viewing box */
+  background-color: #eeeeee; /* Light gray to show the image area */
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: hidden;
-  border-radius: 10px;
-  background: #000;
+  touch-action: none; /* Prevents page scrolling while pinch-zooming */
 }
 
 canvas {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* Movable Text Overlays */
+.text-overlay {
+  position: absolute;
+  cursor: move;
+  user-select: none;
+  white-space: nowrap;
+  color: black;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #fff;
+  transform-origin: center center;
 }
 
 .download-btn {
@@ -135,7 +152,7 @@ canvas {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0,0,0,0.7);
+  background-color: rgba(0,0,0,0.5);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -143,18 +160,19 @@ canvas {
 }
 
 .modal {
-  background-color: #1a1a1a;
+  background-color: #ffffff;
   padding: 30px;
   border-radius: 12px;
   width: 90%;
   max-width: 400px;
-  border: 1px solid #444;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border: 1px solid #ccc;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
 .modal h2 {
   margin-top: 0;
   margin-bottom: 20px;
+  color: #000;
 }
 
 .setting-group {
@@ -166,7 +184,7 @@ canvas {
   display: block;
   margin-bottom: 10px;
   font-size: 14px;
-  color: #aaa;
+  color: #555;
 }
 
 .color-options {
@@ -183,15 +201,15 @@ canvas {
 }
 
 .color-swatch.selected {
-  border-color: white;
+  border-color: #000;
   transform: scale(1.1);
 }
 
 .setting-group select {
   width: 100%;
   padding: 10px;
-  background: #222;
-  color: white;
-  border: 1px solid #444;
+  background: #fff;
+  color: #333;
+  border: 1px solid #ccc;
   border-radius: 5px;
 }
