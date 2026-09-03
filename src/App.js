@@ -6,21 +6,18 @@ function App() {
   const [activeFilter, setActiveFilter] = useState('original');
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  
-  // History
-  const [history, setHistory] = useState([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  
-  // Settings
-  const [bgColor, setBgColor] = useState('#ffffff'); // Default white
-  const [canvasSize, setCanvasSize] = useState('original'); // Removed forced QHD
 
-  // Movable Overlay State (for 404 text, focus text, etc)
-  const [overlays, setOverlays] = useState([]);
-  const activeOverlayRef = useRef(null);
+  // Settings for the Frame
+  const [frameColor, setFrameColor] = useState('#ffffff');
 
-  const canvasRef = useRef(null);
+  // Custom Overlay State
+  const [frameBox, setFrameBox] = useState(null);
+  const [frameText, setFrameText] = useState({ x: 0.1, y: 0.5, fontSize: 80 });
+
+  const viewerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const resizingRef = useRef(null);
+  const draggingRef = useRef(null);
 
   const filters = [
     { id: 'original', name: 'Original' },
@@ -28,15 +25,15 @@ function App() {
     { id: 'mono', name: 'Mono Depth' },
     { id: 'sketch', name: 'Sketch Blur' },
     { id: 'error', name: 'Error 404' },
-    { id: 'paint', name: 'Color Paint' },
     { id: 'focus', name: 'Focus Type' },
+    { id: 'frame', name: "It's Not Joke (Interactive Box)" },
     { id: 'bars', name: 'Vertical Bars' },
-    { id: 'frame', name: 'Framed' },
     { id: 'popart', name: 'Pop Art' },
-    { id: 'grid', name: 'Grid & Tech' }
+    { id: 'grid', name: 'Grid & Tech' },
+    { id: 'paint', name: 'Color Paint' }
   ];
 
-  // --- HANDLE IMAGE ---
+  // Handle Image Upload
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -45,16 +42,8 @@ function App() {
         const img = new Image();
         img.onload = () => {
           setImage(img);
-          setHistory([img]);
-          setHistoryIndex(0);
-          // Reset overlays
-          if (activeFilter === 'error') {
-             setOverlays([{ id: 1, text: 'ERROR 404', x: 0.5, y: 0.5, fontSize: 80 }]);
-          } else if (activeFilter === 'focus') {
-             setOverlays([{ id: 1, text: 'focus', x: 0.5, y: 0.5, fontSize: 120 }]);
-          } else {
-             setOverlays([]);
-          }
+          // Initialize the box on image load
+          setFrameBox({ x: 0.5, y: 0.4, width: 0.4, height: 0.4 });
         };
         img.src = event.target.result;
       };
@@ -62,81 +51,56 @@ function App() {
     }
   };
 
-  // --- DRAWING THE CANVAS ---
+  // Apply Canvas Filters
   const applyFilter = () => {
     const canvas = canvasRef.current;
     if (!canvas || !image) return;
-
     const ctx = canvas.getContext('2d');
     
-    // Set canvas size to original
     canvas.width = image.width;
     canvas.height = image.height;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Background
-    ctx.fillStyle = bgColor;
+    ctx.fillStyle = '#ffffff'; // Default white background
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw base image
     ctx.drawImage(image, 0, 0);
 
-    // --- FILTER LOGIC (Canvas based) ---
     if (activeFilter === 'glitch') {
       for (let i = 0; i < canvas.height; i += 15) {
         const shiftX = (Math.random() - 0.5) * 50;
         ctx.drawImage(canvas, 0, i, canvas.width, 15, shiftX, i, canvas.width, 15);
       }
-    } 
-    else if (activeFilter === 'mono') {
+    } else if (activeFilter === 'mono') {
       ctx.filter = 'grayscale(100%) contrast(120%)';
       ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-    } 
-    else if (activeFilter === 'sketch') {
+    } else if (activeFilter === 'sketch') {
       ctx.filter = 'grayscale(100%) blur(10px) contrast(220%)';
       ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-    } 
-    else if (activeFilter === 'error') {
-      // Only draws the glitch effect, the text is handled by HTML overlay
+    } else if (activeFilter === 'error') {
       ctx.filter = 'grayscale(100%) contrast(200%)';
       ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-      ctx.fillStyle = 'black';
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
       for(let i=0; i<100; i++) ctx.fillRect(0, Math.random() * canvas.height, canvas.width, Math.random() * 3);
-    }
-    else if (activeFilter === 'focus') {
+    } else if (activeFilter === 'focus') {
       ctx.filter = 'grayscale(100%) blur(5px)';
       ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
-    }
-    else if (activeFilter === 'bars') {
+    } else if (activeFilter === 'frame') {
+      // Just black and white background for the frame filter
+      ctx.filter = 'grayscale(100%) contrast(150%)';
+      ctx.drawImage(image, 0, 0);
+      ctx.filter = 'none';
+      // Box is drawn using HTML Overlay, not Canvas
+    } else if (activeFilter === 'bars') {
       const numBars = 4;
       const barWidth = canvas.width / numBars;
       for(let i=0; i<numBars; i++) {
         ctx.drawImage(image, (i*barWidth), 0, barWidth, canvas.height, (i*barWidth), 0, barWidth, canvas.height);
       }
-    }
-    else if (activeFilter === 'frame') {
-      ctx.fillStyle = 'rgba(0,0,0,0.8)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, canvas.width * 0.2, canvas.height * 0.2, canvas.width * 0.6, canvas.height * 0.6);
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = 5;
-      ctx.strokeRect(canvas.width * 0.2, canvas.height * 0.2, canvas.width * 0.6, canvas.height * 0.6);
-    }
-    else if (activeFilter === 'paint') {
-      ctx.filter = 'grayscale(100%)';
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = 'none';
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.fillStyle = 'rgba(0, 100, 255, 0.7)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    else if (activeFilter === 'popart') {
+    } else if (activeFilter === 'popart') {
       ctx.filter = 'grayscale(100%) contrast(200%)';
       ctx.drawImage(image, 0, 0);
       ctx.filter = 'none';
@@ -144,8 +108,7 @@ function App() {
       ctx.fillRect(0, 0, canvas.width/2, canvas.height/2);
       ctx.fillStyle = 'rgba(255, 0, 200, 0.4)';
       ctx.fillRect(canvas.width/2, canvas.height/2, canvas.width/2, canvas.height/2);
-    }
-    else if (activeFilter === 'grid') {
+    } else if (activeFilter === 'grid') {
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
       ctx.lineWidth = 2;
       const gridSize = canvas.width / 10;
@@ -160,42 +123,77 @@ function App() {
     }
   };
 
-  // Run applyFilter whenever dependencies change
-  useEffect(() => {
-    applyFilter();
-    
-    // Reset or Initialize Overlays when filter changes
-    if (activeFilter === 'error') {
-      setOverlays([{ id: 1, text: 'ERROR 404', x: 0.5, y: 0.5, fontSize: 80 }]);
-    } else if (activeFilter === 'focus') {
-      setOverlays([{ id: 1, text: 'focus', x: 0.5, y: 0.5, fontSize: 100 }]);
-    } else {
-      setOverlays([]);
-    }
-  }, [image, activeFilter, bgColor]);
+  const canvasRef = useRef(null);
+  useEffect(() => { applyFilter(); }, [image, activeFilter]);
 
-  // --- DRAG & PINCH TO ZOOM LOGIC ---
-  const startDrag = (e, overlayId) => {
-    const overlay = overlays.find(o => o.id === overlayId);
-    const viewer = e.currentTarget.parentElement;
-    const rect = viewer.getBoundingClientRect();
-    
-    const startX = (e.clientX - rect.left) / rect.width;
-    const startY = (e.clientY - rect.top) / rect.height;
-    const overlayX = overlay.x;
-    const overlayY = overlay.y;
+  // --- DRAG / RESIZE LOGIC ---
+  const startDrag = (e, type) => {
+    e.preventDefault();
+    const viewer = viewerRef.current.getBoundingClientRect();
 
-    activeOverlayRef.current = { id: overlayId, startX, startY, overlayX, overlayY };
-
-    const onMove = (e) => {
-      const currentX = (e.clientX - rect.left) / rect.width;
-      const currentY = (e.clientY - rect.top) / rect.height;
-      const dx = currentX - activeOverlayRef.current.startX;
-      const dy = currentY - activeOverlayRef.current.startY;
+    if (type === 'box') {
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const origX = frameBox.x * viewer.width;
+      const origY = frameBox.y * viewer.height;
       
-      setOverlays(prev => prev.map(o => 
-        o.id === overlayId ? { ...o, x: activeOverlayRef.current.overlayX + dx, y: activeOverlayRef.current.overlayY + dy } : o
-      ));
+      draggingRef.current = { startX, startY, origX, origY };
+    } else if (type === 'resize') {
+      resizingRef.current = { startX: e.clientX, startY: e.clientY, origWidth: frameBox.width, origHeight: frameBox.height, viewer };
+    }
+
+    const onMove = (moveEvent) => {
+      const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+      if (draggingRef.current) {
+        const dx = (clientX - draggingRef.current.startX) / viewer.width;
+        const dy = (clientY - draggingRef.current.startY) / viewer.height;
+        setFrameBox(prev => ({ 
+          ...prev, 
+          x: Math.max(0.05, Math.min(0.95, (draggingRef.current.origX / viewer.width) + dx)), 
+          y: Math.max(0.05, Math.min(0.95, (draggingRef.current.origY / viewer.height) + dy))
+        }));
+      } else if (resizingRef.current) {
+        const dx = (clientX - resizingRef.current.startX) / resizingRef.current.viewer.width;
+        const dy = (clientY - resizingRef.current.startY) / resizingRef.current.viewer.height;
+        setFrameBox(prev => ({ 
+          ...prev, 
+          width: Math.max(0.1, resizingRef.current.origWidth + dx), 
+          height: Math.max(0.1, resizingRef.current.origHeight + dy)
+        }));
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+      draggingRef.current = null;
+      resizingRef.current = null;
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onUp);
+  };
+
+  const startTextDrag = (e) => {
+    e.preventDefault();
+    const viewer = viewerRef.current.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const origX = frameText.x * viewer.width;
+    const origY = frameText.y * viewer.height;
+
+    const onMove = (moveEvent) => {
+      const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const dx = (clientX - startX) / viewer.width;
+      const dy = (clientY - startY) / viewer.height;
+      setFrameText(prev => ({ ...prev, x: (origX / viewer.width) + dx, y: (origY / viewer.height) + dy }));
     };
 
     const onUp = () => {
@@ -211,70 +209,43 @@ function App() {
     window.addEventListener('touchend', onUp);
   };
 
-  const handleWheel = (e, overlayId) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 10 : -10;
-    setOverlays(prev => prev.map(o => 
-      o.id === overlayId ? { ...o, fontSize: Math.max(20, o.fontSize + delta) } : o
-    ));
-  };
-
-  // --- HISTORY / CLEAR / SAVE ---
-  const saveToHistory = () => {
-    const newHistory = [...history.slice(0, historyIndex + 1), activeFilter];
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  };
-
-  const handlePrevious = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      setActiveFilter(history[newIndex]);
-    }
-  };
-
-  const handleRestore = () => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setActiveFilter(history[newIndex]);
-    }
-  };
-
-  const handleClear = () => {
-    setImage(null);
-    setHistory([]);
-    setHistoryIndex(-1);
-    setOverlays([]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // Final Export (Draws Overlays onto the Canvas)
+  // Final Save (Draw Box & Text on Canvas)
   const downloadImage = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     
-    // Draw HTML Overlays onto final canvas
-    overlays.forEach(overlay => {
-      ctx.font = `bold ${overlay.fontSize}px Arial`;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+    // Draw Frame Box
+    if (activeFilter === 'frame' && frameBox) {
+      const boxX = frameBox.x * canvas.width;
+      const boxY = frameBox.y * canvas.height;
+      const boxWidth = frameBox.width * canvas.width;
+      const boxHeight = frameBox.height * canvas.height;
       
-      // Draw background band
-      const textWidth = ctx.measureText(overlay.text).width;
-      ctx.fillRect(canvas.width * overlay.x - textWidth/2 - 20, canvas.height * overlay.y - overlay.fontSize/2 - 10, textWidth + 40, overlay.fontSize + 20);
-      
-      // Draw text
-      ctx.fillStyle = 'white';
-      ctx.fillText(overlay.text, canvas.width * overlay.x, canvas.height * overlay.y);
-    });
+      ctx.strokeStyle = frameColor;
+      ctx.lineWidth = 8;
+      ctx.strokeRect(boxX - boxWidth/2, boxY - boxHeight/2, boxWidth, boxHeight);
+
+      // Draw Text
+      const textX = frameText.x * canvas.width;
+      const textY = frameText.y * canvas.height;
+      ctx.fillStyle = frameColor;
+      ctx.font = `bold ${canvas.width * 0.15}px Arial`;
+      ctx.textAlign = 'left';
+      ctx.fillText("IT'S", textX, textY - canvas.height * 0.2);
+      ctx.fillText("NOT", textX, textY);
+      ctx.fillText("JOKE", textX, textY + canvas.height * 0.2);
+    }
 
     const link = document.createElement('a');
-    link.download = 'filtered_image.png';
+    link.download = 'frame_image.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
+  };
+
+  const handleClear = () => {
+    setImage(null);
+    setFrameBox(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -289,8 +260,6 @@ function App() {
         
         {image && (
           <>
-            <button className="btn" onClick={handlePrevious} disabled={historyIndex <= 0}>Previous</button>
-            <button className="btn" onClick={handleRestore} disabled={historyIndex >= history.length - 1}>Restore</button>
             <button className="btn" onClick={handleClear}>Clear All</button>
             <button className="icon-btn" onClick={() => setShowSettings(true)}>⚙️</button>
           </>
@@ -312,7 +281,6 @@ function App() {
                     onClick={() => {
                       setActiveFilter(filter.id);
                       setShowFilters(false);
-                      saveToHistory();
                     }}
                   >
                     {filter.name}
@@ -322,30 +290,56 @@ function App() {
             )}
           </div>
 
-          {/* The "Box" to see the image in good size */}
-          <div className="viewer-box">
+          {/* Viewer Box */}
+          <div className="viewer-box" ref={viewerRef}>
             <canvas ref={canvasRef}></canvas>
-            
-            {/* Render Movable Overlays */}
-            {overlays.map(overlay => (
+
+            {/* Interactive Frame Box */}
+            {activeFilter === 'frame' && frameBox && (
               <div 
-                key={overlay.id}
-                className="text-overlay"
+                className="frame-box" 
                 style={{
-                  left: `${overlay.x * 100}%`,
-                  top: `${overlay.y * 100}%`,
-                  fontSize: `${overlay.fontSize}px`,
+                  left: `${frameBox.x * 100}%`,
+                  top: `${frameBox.y * 100}%`,
+                  width: `${frameBox.width * 100}%`,
+                  height: `${frameBox.height * 100}%`,
+                  transform: 'translate(-50%, -50%)',
+                  borderColor: frameColor,
+                  borderWidth: '4px'
+                }}
+                onMouseDown={(e) => startDrag(e, 'box')}
+                onTouchStart={(e) => startDrag(e, 'box')}
+              >
+                {/* Resize Handle (Bottom Right) */}
+                <div 
+                  className="resize-handle br" 
+                  onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'resize'); }}
+                  onTouchStart={(e) => { e.stopPropagation(); startDrag(e, 'resize'); }}
+                ></div>
+              </div>
+            )}
+
+            {/* Interactive Text */}
+            {activeFilter === 'frame' && (
+              <div 
+                className="frame-text"
+                style={{
+                  left: `${frameText.x * 100}%`,
+                  top: `${frameText.y * 100}%`,
+                  color: frameColor,
                   transform: 'translate(-50%, -50%)'
                 }}
-                onMouseDown={(e) => startDrag(e, overlay.id)}
-                onTouchStart={(e) => startDrag(e, overlay.id)}
-                onWheel={(e) => handleWheel(e, overlay.id)}
+                onMouseDown={startTextDrag}
+                onTouchStart={startTextDrag}
               >
-                {overlay.text}
+                IT'S NOT JOKE
               </div>
-            ))}
+            )}
           </div>
-          <p style={{fontSize: '12px', color: '#888'}}>Drag text to move. Use scroll wheel / pinch to resize.</p>
+          
+          <p style={{fontSize: '12px', color: '#888'}}>
+            {activeFilter === 'frame' ? 'Drag the box and text. Use the bottom-right circle to resize Length & Width.' : 'Select a filter from the dropdown.'}
+          </p>
 
           <button className="download-btn" onClick={downloadImage}>
             Save Image
@@ -358,18 +352,12 @@ function App() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Settings</h2>
             <div className="setting-group">
-              <label>Background Color (Defaults to White)</label>
+              <label>Frame Border Color</label>
               <div className="color-options">
-                {['#ffffff', '#121212', '#0000ff', '#ffff00', '#dcdcdc'].map(c => (
-                  <div key={c} className={`color-swatch ${bgColor === c ? 'selected' : ''}`} style={{backgroundColor: c}} onClick={() => setBgColor(c)}></div>
+                {['#ffffff', '#000000', '#ff0000', '#ffff00', '#0000ff'].map(c => (
+                  <div key={c} className={`color-swatch ${frameColor === c ? 'selected' : ''}`} style={{backgroundColor: c}} onClick={() => setFrameColor(c)}></div>
                 ))}
               </div>
-            </div>
-            <div className="setting-group">
-              <label>Image Size (Original maintained)</label>
-              <select value={canvasSize} onChange={(e) => setCanvasSize(e.target.value)}>
-                <option value="original">Original Size</option>
-              </select>
             </div>
             <button className="btn" onClick={() => setShowSettings(false)}>Close</button>
           </div>
